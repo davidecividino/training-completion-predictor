@@ -1,9 +1,4 @@
-Author: Davide Cividino
-Date: 15.08.2022
-Scope: Technical Task for Data Science in People Analytics interview
-
-The present folder CS_technical_exercise/ contains all the material for the Technical Task for Data Science in People Analytics interview.
-The folder is structured as follows.
+The repo is structured as follows.
 
 Two main files containing the analysis:
 * Exploratory_Data_Analysis.Rmd: file generating the Exploratory Data Analysis and containing the information on the task details (start from here)
@@ -17,8 +12,5 @@ One folder with all the data data/, stuctured into two subfolders:
 
 A support technical folder:
 * .ipynb_checkpoints
-
-The pdf with the task detail:
-* candidate task.pdf
 
 Please start from Exploratory_Data_Analysis.Rmd (Exploratory_Data_Analysis.html) and then move to model_constuction.ipynb (model_constuction.html).
