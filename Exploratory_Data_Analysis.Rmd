@@ -1,0 +1,411 @@
+---
+title: "Online trainings completion rate analysis"
+subtitle: 'Technical Task for Data Science in People Analytics interview'
+author:
+- name: Davide Cividino
+date: "`r format(Sys.time(), '%d-%m-%Y')`"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    df_print: kable
+header-includes:
+  \usepackage{dcolumn}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = F, message = F,
+                      #fig.height = 8, fig.width = 8,
+                      fig.align = "center")
+```
+
+<style type="text/css">
+h1 { /* Header 1 */
+  font-size: 30px;
+}
+h2 { /* Header 2 */
+    font-size: 24px;
+}
+h3 { /* Header 3 */
+  font-size: 20px;
+}
+h4 { /* Header 4 */
+  font-size: 18px;
+}
+</style>
+
+<style> body {text-align: justify} </style>
+
+
+# Task details
+
+A colleague from the Learning Team, who is responsible for digital trainings, has approached you and would like your help in understanding the completion rates for their online trainings. They would also like you to build a model that estimates the probability that an employee completes a training.
+
+To this end, they have provided you two data files: “employee.csv” and “performance.csv”. The first file (“employee.csv”) contains HR data regarding our employees, while the second file (“performance.csv”) contains information about an employee’s performance rating from our performance management system.
+
+Using these two files (containing synthetic data) and either R or Python:
+
+Undertake the necessary steps to
+
+1. Build a model that estimates the probability that an employee completes a training
+
+2. Write a short summary (bullet points and comments in your code/notebook/markdown are perfectly fine) that gives your colleague some insights into the top 5 drivers of your estimates as well as an evaluation of the model’s performance. Since we do not have provided a detailed codebook, feel free to provide your own interpretation as to what these variables might mean (don’t worry, there are no wrong answers).
+
+
+# Analysis outline
+
+We structure the analysis on the completion rates of online trainings as follows.
+
+1. Preliminary Exploratory Data Analysis in this R Markdown file.
+2. Model definition, performance evaluation and discussion of results and insights in Jupyter Notebook.
+
+To perform the task we leverage on both R and Python, taking advantage of the strengths of both languages, in particular the Tidyverse packages collection in R, powerful tool for exploratory data analysis, and Scikit-learn, effective Python library to prototype Machine Learning models.
+
+# Exploratory Data Analysis
+
+As a prerequisite to develop any predictive model, we start with the exploratory analysis of the available data. We have two main goals:
+
+- Explore the data and get first insights into the information available.
+
+- Check the data quality and identify possible outliers that need to be treated accordingly.
+
+The data sources available are two csv data files: “employee.csv” and “performance.csv”.
+
+In the following section we start analyzing the first.
+
+# Data source “employee.csv”
+
+We start with a look at the data, selecting 10 random rows.
+
+```{r import data and functions, include=F}
+rm(list = ls())
+
+library(tidyverse)
+library(moments) # to compute skewness of a distribution
+library(corrplot) # to plot correlation matrix
+
+# Setwd 
+setwd("/home/davide/Desktop/CS_technical_exercise")
+
+```
+
+```{r}
+employee_raw <- read.csv("data/raw/employee.csv")
+
+employee_raw <- employee_raw %>% 
+  mutate(date = as.Date(date))
+
+employee_raw %>% 
+  sample_n(10)
+```
+
+The data is stored in tabular form. We have `r nrow(employee_raw)` observations and `r ncol(employee_raw)` columns. From the available information in the task details, we infer that the column *training_completed* represents the target variable of our prediction problem. The variable can assume only two values 0 (training not completed) and 1 (training completed). 
+
+We are in presence of a supervised learning problem, in particular a classification problem with two target classes. We observe that the number of examples in the dataset for each class label is balanced, important information to design a prediction model.
+
+```{r}
+table(employee_raw$training_completed)
+```
+
+The 13 columns from *business_division* to *date* represent characteristics of the employee and constitute potential input variables for our prediction model. We observe that we have mixed-type features, with both categorical, discrete and continuous variables plus one time variable. The last column *id* represents the unique identifier of the employee and hence will be discarded in the following analysis. To check the data quality we verify that the *id* is a proper primary key of the dataset.
+
+```{r}
+multiple_rows_per_id <- employee_raw %>% 
+  group_by(id) %>% 
+  summarise(nr_rows_per_id = n()) %>% 
+  filter(nr_rows_per_id > 1)
+
+nrow(multiple_rows_per_id)
+```
+
+```{r}
+# drop column id
+employee <- employee_raw %>% 
+  select(-id) 
+```
+
+Given the limited number of features, the quick analysis of each of them is worth it, before restricting the set of relevant features or applying techniques of dimensionality reduction. In the following we analyze one by one each potentially relevant feature for our predictive model.
+
+## Features analysis
+
+### business_division and department
+
+The two categorical variables *business_division* and *department* represent the organizational assignment of the employee. There are 4 equally represented organizational clusters.
+
+```{r}
+table(employee$business_division)
+```
+
+There are 10 equally represented organizational subgroups.
+
+```{r}
+table(employee$department)
+```
+
+We observe that each business division is structured in the 10 departments.
+
+```{r}
+employee_nr_per_depdiv <- employee %>% 
+  group_by(business_division, department) %>% 
+  summarise(employee_nr = n()) %>% 
+  arrange(business_division, department)
+```
+
+The departments of the four divisions all have similar staff size.
+
+```{r}
+employee_nr_per_depdiv_concat <- employee_nr_per_depdiv %>% 
+  mutate(division = business_division) %>% 
+  unite(division_department, business_division, department)
+
+ggplot(data = employee_nr_per_depdiv_concat) +
+  geom_bar(mapping = aes(x = division_department, y = employee_nr, fill = division), stat = "identity") +
+   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) 
+```
+
+
+### engagement_score
+
+The engagement_score is a discrete variable that takes value from `r min(employee$engagement_score)` to `r max(employee$engagement_score)`. The most represented score is 3, with less observations for extreme scores. The average score is `r round(mean(employee$engagement_score),1)`, with a standard deviation of `r round(sd(employee$engagement_score),1)`. The distribution of engagement_score resembles a "discretized" normal distribution with mean = `r round(mean(employee$engagement_score),0)`.
+```{r}
+table(employee$engagement_score)
+
+ggplot(data = employee) +
+  geom_bar(mapping = aes(x = engagement_score))
+```
+
+
+### tenure
+
+The tenure is a discrete variable that takes value from `r min(employee$tenure)` to `r max(employee$tenure)`. The average score is `r round(mean(employee$tenure),1)`, with a standard deviation of `r round(sd(employee$tenure),1)`. The distribution of tenure is close to a "discretized" normal distribution with mean = `r round(mean(employee$tenure),1)`.
+```{r}
+table(employee$tenure)
+
+ggplot(data = employee) +
+  geom_bar(mapping = aes(x = tenure))
+```
+
+
+### leadership_score
+
+The leadership_score is a continuous variable that takes values between `r min(employee$leadership_score)` and `r max(employee$leadership_score)`. The average score is `r round(mean(employee$leadership_score),1)`, with a standard deviation of `r round(sd(employee$leadership_score),1)`. The distribution of leadership_score is close to a normal distribution with mean = `r round(mean(employee$leadership_score),1)`.
+```{r}
+ggplot(data = employee) +
+  geom_histogram(mapping = aes(x = leadership_score))
+```
+
+
+### overtime
+
+The overtime is a discrete variable that takes values between `r min(employee$overtime)` and `r max(employee$overtime)`. The average score is `r round(mean(employee$overtime),1)`, with a standard deviation of `r round(sd(employee$overtime),1)`. The distribution of overtime is close to a "discretized" normal distribution with mean = `r round(mean(employee$overtime),1)`.
+```{r}
+ggplot(data = employee) +
+  geom_histogram(mapping = aes(x = overtime))
+```
+
+
+### incidents
+
+The incidents is a discrete variable that takes values from 0 to 3, the most represented score is 1 with less observations for extreme scores. The average score is `r round(mean(employee$engagement_score),1)`, with a standard deviation of `r round(sd(employee$engagement_score),1)`.
+```{r}
+table(employee$incidents)
+
+ggplot(data = employee) +
+  geom_bar(mapping = aes(x = incidents))
+```
+
+
+### duration_elearning
+
+The duration_elearning is a discrete variable that takes values between `r min(employee$duration_elearning)` and `r max(employee$duration_elearning)`. The average score is `r round(mean(employee$duration_elearning),1)`, with a standard deviation of `r round(sd(employee$duration_elearning),1)`. The distribution of duration_elearning is close to a "discretized" normal distribution with mean = `r round(mean(employee$duration_elearning),1)`.
+```{r}
+ggplot(data = employee) +
+  geom_histogram(mapping = aes(x = duration_elearning))
+```
+
+
+### time_in_title
+
+The time_in_title is a discrete variable that takes values between `r min(employee$time_in_title)` and `r max(employee$time_in_title)`. The average score is `r round(mean(employee$time_in_title),1)`, with a standard deviation of `r round(sd(employee$time_in_title),1)`. The distribution of time_in_title is close to a normal distribution with mean = `r round(mean(employee$time_in_title),1)`. 
+
+```{r}
+ggplot(data = employee) +
+  # set number of bins to 31, unless the default bins = 30 produce a bad plot since the number of possible values is 31
+  geom_histogram(mapping = aes(x = time_in_title), bins = 31)
+```
+
+
+### delta_trainings_last_year
+
+The delta_trainings_last_year is a discrete variable that takes values from `r min(employee$delta_trainings_last_year)` and `r max(employee$delta_trainings_last_year)`, the most represented score is 5 with less observations for extreme scores. The average score is `r round(mean(employee$delta_trainings_last_year),1)`, with a standard deviation of `r round(sd(employee$delta_trainings_last_year),1)`. This time the distribution only resemble vaguely a "discretized" normal distribution, being visibly right-skewed. Indeed, the skewness is `r skewness(employee$delta_trainings_last_year)`, far from the zero of a symmetric distribution such as the normal.
+
+```{r}
+table(employee$delta_trainings_last_year)
+
+ggplot(data = employee) +
+  geom_bar(mapping = aes(x = delta_trainings_last_year))
+```
+
+
+
+### risk_of_leaving
+
+The risk_of_leaving is a continuous variable that takes values between `r min(employee$risk_of_leaving)` and `r max(employee$risk_of_leaving)`. The average score is `r round(mean(employee$risk_of_leaving),1)`, with a standard deviation of `r round(sd(employee$risk_of_leaving),1)`. The distribution of risk_of_leaving is close to a normal distribution with mean = `r round(mean(employee$risk_of_leaving),1)`.
+```{r}
+ggplot(data = employee) +
+  geom_histogram(mapping = aes(x = risk_of_leaving))
+```
+
+
+### leadership_score2
+
+The leadership_score2 is a continuous variable that takes values between `r min(employee$leadership_score2)` and `r max(employee$leadership_score2)`. The average score is `r round(mean(employee$leadership_score2),1)`, with a standard deviation of `r round(sd(employee$leadership_score2),1)`. The distribution of leadership_score2 is close to a normal distribution with mean = `r round(mean(employee$leadership_score2),1)`. We notice that the distribution match the distribution of the variable leadership_score, we will come back to this point later.
+```{r}
+ggplot(data = employee) +
+  geom_histogram(mapping = aes(x = leadership_score2))
+```
+
+
+### date
+
+Finally, date is a time variable, covering the time period from `r min(employee$date)` to `r max(employee$date)`.
+
+```{r}
+ggplot(data = employee) +
+  geom_bar(mapping = aes(x = as.Date(date))) +
+  xlab("date")
+```
+
+Before even deepening the analysis of the variable and investigate its meaning, since our goal is to build a model that estimates the probability that an employee completes a training, it is clear that this time variable is not suitable to be used as an input of our model. The variable date spans a limited time period of three months of 2019, which clearly cannot be representative of any seasonal time trend across the year. Moreover, from the plot above it is evinced that no seasonality is present inside the month neither. Having excluded the seasonality inside the month, we observe that the variable date cannot be useful to infer any time trend for future data, independently of the actual meaning of the variable. 
+
+```{r}
+# drop column date
+employee <- employee %>% 
+  select(-date) 
+```
+
+Later, analyzing the other data source "performance.csv" we will be able to give the date variable the meaning of performance evaluation date, confirming our choice to exclude it from the relevant input variable of our model.
+
+## Data quality and outliers
+
+From the analysis above, it emerges that the data quality of the dataset is extremely high, with no missing values or incoherent data types. In addition, no outlier has been identified in any of the features with all values always included in a well-defined and limited range, hence techniques to handle outliers or further investigation via whisker plots is not required. 
+
+We have observed that all the numerical features are well approximated by a normal distribution in the standard continous form or in a "discretized" fashion. This represents an important finding of our exploratory analysis, backing a strong assumption we can set up to model the data.
+
+## Correlation
+
+Having observed all the numerical features are well approximated by a normal distribution, we are now interested in the correlation among them. To analyze it, we compute the correlation matrix of the 10 numerical features.
+
+```{r}
+numerical_features <- employee %>% 
+  select(-c("training_completed", "business_division", "department")) 
+
+corrplot(cor(numerical_features),method = 'color', is.corr = TRUE, 
+         col.lim = c(-1, 1), tl.cex = 0.5,
+         title='Numerical features correlation matrix',
+         mar=c(0,0,1,0))
+
+cor(numerical_features)
+```
+
+Interestingly, most of the variables are little correlated or negatively correlated. Clear exceptions are the leadership_score with the risk_of_leaving (rather interestingly) and the leadership_score and leadership_score2. In particular, for the latter pair of variables the correlation is perfect corr = 1. This is also evident plotting the leadership_score against the leadership_score2. 
+
+```{r}
+ggplot(data = employee) +
+  geom_point(mapping = aes(x = leadership_score, y = leadership_score2)) 
+```
+
+We have discovered that leadership_score2 is a linear function of leadership_score, hence it is not giving additional information to our predictive model and can be safely ignored
+
+```{r}
+# drop column leadership_score2
+employee <- employee %>% 
+  select(-leadership_score2) 
+```
+
+We now move to the second data source “performance.csv”.
+
+# Data source “performance.csv”
+
+We start with a look at the data, selecting 10 random rows.
+
+```{r}
+performance_raw <- read.csv("data/raw/performance.csv")
+
+performance_raw <- performance_raw %>% 
+  mutate(date = as.Date(date))
+
+performance_raw %>% 
+  sample_n(10)
+```
+
+The data is stored again in tabular form. We have `r nrow(performance_raw)` observations and `r ncol(performance_raw)` columns. 
+
+The dataset present the performance evaluations of half of the employees present in "employee.csv", for the remaining half (from 2501 to 5000) the rating variable will present a missing value when joining the two datasets, this is something that should be carefully considered in the following. The second file confirm our hypothesis on the date variable, also present in "employee.csv", it represents the date of the evaluation (or the date the employee evaluation data was registered). This is confirmed joining the two pairs of variables (id, date) from the two datasets, all the performance evaluations stored in "performance.csv" have a (unique) match in "employee.csv".
+
+```{r}
+performance_not_matching_in_employee_dataset <- performance_raw %>% 
+  left_join(employee_raw, by = c("id", "date")) %>% 
+  filter(is.na(rating))
+  
+nrow(performance_not_matching_in_employee_dataset)
+```
+
+Hence, the dataset "performance.csv" is bringing a new categorical feature *rating*, that can be joined to the employee dataset via id and date. 
+
+```{r}
+table(performance_raw$rating)
+```
+
+The categorical variable can be transformed into a discrete numeric variable encoding the ratings in a straightforward numeric scale. 
+
+```{r}
+performance <- performance_raw %>% 
+  mutate(rating = case_when(
+    rating == "Need for improvement" ~ 1,
+    rating == "Good" ~ 2,
+    rating == "Very good" ~ 3,
+    TRUE ~ -1
+  ))
+```
+
+Now rating is a discrete variable that takes value from `r min(performance$rating)` to `r max(performance$rating)`. The three rating values are similarly represented in the dataset.
+```{r}
+ggplot(data = performance) +
+  geom_bar(mapping = aes(x = rating))
+```
+
+
+# Final dataset
+
+We add the new rating feature to the employee dataset, joining the two data frames by id and date.
+
+```{r}
+# need to cast date from both datasets to date type since they are internally represented in different string formats
+df_clean <- employee_raw %>% 
+  mutate(date = as.Date(date)) %>% 
+  left_join(performance %>% mutate(date = as.Date(date)), by = c("id", "date")) %>% 
+  select(-c("id", "date","leadership_score2"))
+
+write.csv(df_clean, "data/clean/employee_clean.csv", row.names = FALSE)
+```
+
+We have now obtained the final cleaned dataset that will be used to design, train and test our predictive model. We have the output variable training_completed, two categorical variables (business_division and department) and 10 numerical variables (2 continuous and 8 discrete).
+
+As a final check, we compute the correlation of the added feature rating with the other numerical variables. To do so, we have to restrict our analysis to the first 2500 observations, again this is something that should be taken carefully into account in the future design of the model.
+
+```{r}
+numerical_features <- df_clean %>% 
+  select(-c("training_completed", "business_division", "department")) %>% 
+  filter(!is.na(rating))
+
+corrplot(cor(numerical_features),method = 'color', is.corr = TRUE, 
+         col.lim = c(-1, 1), tl.cex = 0.5,
+         title='Correlation matrix (incl rating and ONLY first 2500 observations)',
+         mar=c(0,0,1,0))
+
+cor(numerical_features)
+```
+
+Interestingly we observe that the variable rating is almost uncorrelated to the others (limited to the first 2500 observation for which is defined). This concludes the exploratory analysis.
