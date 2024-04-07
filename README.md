@@ -1,4 +1,4 @@
-# HR Analytics challenge
+# The HR Analytics challenge
 A colleague from the Learning Team, who is responsible for digital trainings, has approached you and would like your help in understanding the completion rates for their online trainings. They would also like you to build a model that estimates the probability that an employee completes a training.
 To this end, they have provided you two data files: “employee.csv” and “performance.csv”. The first file (“employee.csv”) contains HR data regarding our employees, while the second file (“performance.csv”) contains information about an employee’s performance rating from our performance management system.
 Using these two files (containing synthetic data) and either R or Python:
