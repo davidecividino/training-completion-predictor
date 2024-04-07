@@ -4,13 +4,45 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Website</title>
+    <!-- You can link external CSS files here if needed -->
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <h1>Welcome to My Website</h1>
-    <ul>
-        <li><a href="Exploratory_Data_Analysis.html">Home</a></li>
-        <li><a href="model_constuction.html">About</a></li>
-    </ul>
-    <!-- You can optionally add content here -->
+    <!-- Header section -->
+    <header>
+        <h1>training-completion-predictor</h1>
+        <nav>
+            <ul>
+                <li><a href="Exploratory_Data_Analysis.html">Home</a></li>
+                <li><a href="model_constuction.html">About</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <!-- Main content section -->
+    <main>
+        <section>
+            <h2>The HR Analytics challenge</h2>
+            <p>A colleague from the Learning Team, who is responsible for digital trainings, has approached you and would like your help in understanding the completion rates for their online trainings. They would also like you to build a model that estimates the probability that an employee completes a training.
+                To this end, they have provided you two data files: “employee.csv” and “performance.csv”. The first file (“employee.csv”) contains HR data regarding our employees, while the second file (“performance.csv”) contains information about an employee’s performance rating from our performance management system.
+                Using these two files (containing synthetic data) and either R or Python:
+                Undertake the necessary steps to
+                1. Build a model that estimates the probability that an employee completes a training
+                2. Write a short summary (bullet points and comments in your code/notebook/markdown are perfectly fine) that gives your colleague some insights into the top 5 drivers of your estimates as well as an evaluation of the model’s performance. Since we do not have provided a detailed codebook, feel free to provide your own interpretation as to what these variables might mean (don’t worry, there are no wrong answers).</p>
+            <h2>Repository structure</h2>
+            <p>Two main files containing the analysis:
+                * Exploratory_Data_Analysis.Rmd: file generating the Exploratory Data Analysis and containing the information on the task details (start from here)
+                    The Rmd script generates the html file Exploratory_Data_Analysis.html
+                * model_constuction.ipynb: Jupyter Notebook containg the model definition, performance evaluation and discussion of results and insights in Jupyter Notebook.
+                    The Jupyter Notebook generates the html file model_constuction.html
+                
+                One folder with all the data data/, stuctured into two subfolders:
+                * raw/: with the two raw datasets
+                * clean/: with the final cleaned dataset
+                
+                Please start from Exploratory_Data_Analysis.Rmd (Exploratory_Data_Analysis.html) and then move to model_constuction.ipynb (model_constuction.html).</p>
+        </section>
+    </main>
+
 </body>
 </html>
