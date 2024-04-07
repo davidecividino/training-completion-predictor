@@ -10,7 +10,4 @@ One folder with all the data data/, stuctured into two subfolders:
 * raw/: with the two raw datasets
 * clean/: with the final cleaned dataset
 
-A support technical folder:
-* .ipynb_checkpoints
-
 Please start from Exploratory_Data_Analysis.Rmd (Exploratory_Data_Analysis.html) and then move to model_constuction.ipynb (model_constuction.html).
